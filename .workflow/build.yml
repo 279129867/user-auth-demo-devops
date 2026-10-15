@@ -1,0 +1,25 @@
+version: '1.0'
+displayName: 自动构建并推送镜像
+triggers:
+  push:
+    - main
+
+stages:
+  - stage: Maven构建
+    steps:
+      - step: 编译打包
+        image: maven:3.9-eclipse-temurin-17
+        commands:
+          - mvn clean package -DskipTests -B
+
+  - stage: 构建Docker镜像并推送
+    steps:
+      - step: 登录腾讯云镜像仓库
+        commands:
+          - echo ${{ secrets.TCR_PASSWORD }} | docker login ccr.ccs.tencentyun.com -u ${{ secrets.TCR_USERNAME }} --password-stdin
+      - step: 构建镜像
+        commands:
+          - docker build -t ccr.ccs.tencentyun.com/279129867/user-auth-demo:latest .
+      - step: 推送镜像
+        commands:
+          - docker push ccr.ccs.tencentyun.com/279129867/user-auth-demo:latest
