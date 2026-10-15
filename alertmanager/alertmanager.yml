@@ -1,0 +1,15 @@
+global:
+  smtp_smarthost: 'smtp.qq.com:587'
+  smtp_from: '279129867@qq.com'
+  smtp_auth_username: '279129867@qq.com'
+  smtp_auth_password: 'ildxjgwtgmzrbifi'
+  smtp_require_tls: true
+
+route:
+  receiver: 'email'
+
+receivers:
+  - name: 'email'
+    email_configs:
+      - to: '279129867@qq.com'
+        send_resolved: true

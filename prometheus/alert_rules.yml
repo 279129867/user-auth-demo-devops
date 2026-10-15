@@ -1,0 +1,32 @@
+groups:
+  - name: demo-alerts
+    rules:
+      # 服务宕机
+      - alert: ServiceDown
+        expr: up{job="user-auth-app"} == 0
+        for: 10s
+        labels:
+          severity: P1
+        annotations:
+          summary: "应用服务挂了"
+          description: "user-auth-app 已经 1 分钟没有心跳了"
+
+      # CPU 过高
+      - alert: HighCpu
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 85
+        for: 5m
+        labels:
+          severity: P2
+        annotations:
+          summary: "CPU 使用率超过 85%"
+          description: "实例 {{ $labels.instance }} CPU 已经持续 5 分钟超过 85%"
+
+      # 磁盘告警
+      - alert: DiskLow
+        expr: (1 - (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"})) * 100 > 80
+        for: 5m
+        labels:
+          severity: P2
+        annotations:
+          summary: "磁盘使用率超过 80%"
+          description: "实例 {{ $labels.instance }} 根分区磁盘已经超过 80%"
