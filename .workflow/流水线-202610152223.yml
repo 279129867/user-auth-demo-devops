@@ -1,0 +1,36 @@
+version: "1.0"
+name: CI构建
+displayName: CI自动构建
+stages:
+- name: 构建
+  displayName: Maven构建
+  strategy: naturally
+  trigger: auto
+  steps:
+  - step: build@maven
+    displayName: 编译打包
+    mavenVersion: 3.9.6
+    commands:
+    - mvn clean package -Dmaven.test.skip=true -B
+    artifacts:
+    - name: BUILD_ARTIFACT
+      path:
+      - ./target
+      type: .tar.gz
+    settings: []
+    caches:
+    - "~/.m2"
+    notify: []
+    strategy:
+      retry: "0"
+      resource:
+        cpu: "2"
+        memory: "4"
+
+triggers:
+  trigger: push
+  branches:
+  - main
+notify: []
+strategy:
+  blocking: true
