@@ -1,29 +1,36 @@
-version: '1.0'
-displayName: 自动构建
-triggers:
-  push:
-    branches:
-      include:
-        - main
-
+version: "1.0"
+name: CI构建
+displayName: CI自动构建
 stages:
-  - stage:
-      name: Maven构建
-      steps:
-        - step:
-            type: shell
-            name: 编译打包
-            image: maven:3.9-eclipse-temurin-17
-            script: |
-              mvn clean package -DskipTests -B
+- name: 构建
+  displayName: Maven构建
+  strategy: naturally
+  trigger: auto
+  steps:
+  - step: build@maven
+    displayName: 编译打包
+    mavenVersion: 3.9.6
+    commands:
+    - mvn clean package -Dmaven.test.skip=true -B
+    artifacts:
+    - name: BUILD_ARTIFACT
+      path:
+      - ./target
+      type: .tar.gz
+    settings: []
+    caches:
+    - "~/.m2"
+    notify: []
+    strategy:
+      retry: "0"
+      resource:
+        cpu: "2"
+        memory: "4"
 
-  - stage:
-      name: 构建并推送镜像
-      steps:
-        - step:
-            type: shell
-            name: 登录并推送
-            script: |
-              echo $TCR_PASSWORD | docker login ccr.ccs.tencentyun.com -u $TCR_USERNAME --password-stdin
-              docker build -t ccr.ccs.tencentyun.com/279129867/user-auth-demo:latest .
-              docker push ccr.ccs.tencentyun.com/279129867/user-auth-demo:latest
+triggers:
+  trigger: push
+  branches:
+  - main
+notify: []
+strategy:
+  blocking: true
