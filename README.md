@@ -1,112 +1,110 @@
-# 用户管理与登录鉴权 Demo（Spring Boot 3）
+# 用户认证系统 + DevOps 运维平台
 
-一个展示**后端开发 + 部署运维**能力的完整小项目：用户注册/登录（JWT 鉴权）、用户 CRUD、Redis 缓存、容器化一键部署。
-
-> 用这一个作品即可覆盖：Java 17 / Spring Boot 3 / MySQL 8 / Redis / JWT / Spring Security / Docker 部署。
-
----
+Spring Boot 3 用户认证项目，配套完整的监控告警、CI/CD 流水线和自动化运维脚本。
 
 ## 技术栈
 
-| 模块 | 技术 |
+| 层级 | 技术 |
 |---|---|
-| 语言/框架 | Java 17, Spring Boot 3.2, Spring Web, Spring Data JPA |
-| 安全 | Spring Security + JWT (jjwt) + BCrypt 密码加密 |
-| 存储 | MySQL 8（业务数据）、Redis 7（缓存） |
-| 部署 | Docker + docker-compose（多阶段构建、健康检查、非 root 运行） |
+| 后端 | Spring Boot 3 + Spring Security + JWT + MyBatis-Plus |
+| 中间件 | MySQL 8 + Redis 7 |
+| 监控 | Prometheus + Grafana + Alertmanager |
+| CI/CD | Jenkins Pipeline + Gitee |
+| 容器化 | Docker + Docker Compose |
+| 镜像仓库 | 腾讯云容器镜像服务 TCR |
 
-## 功能
-
-- **注册**：用户名唯一、密码 BCrypt 加密存储、参数校验
-- **登录**：校验密码 → 签发 JWT Token（默认 24h 过期）
-- **鉴权**：除 `/api/auth/**` 外所有接口需携带 `Authorization: Bearer <token>`
-- **用户管理**：查自己 / 列表 / 更新昵称邮箱 / 删除
-- **缓存**：用户详情走 Redis 缓存（`@Cacheable`），降低 DB 压力
-- **统一响应 & 全局异常**：`ApiResponse` 包裹 + `@RestControllerAdvice` 统一错误返回
-
-## 目录结构
+## 项目架构
 
 ```
-user-auth-demo
-├── Dockerfile                # 多阶段构建，非 root 运行
-├── docker-compose.yml        # 一键起 MySQL + Redis + 应用
-├── pom.xml
-└── src/main/java/com/demo/user/
-    ├── UserAuthApplication.java
-    ├── common/               # ApiResponse / BizException / 全局异常
-    ├── config/               # SecurityConfig / JwtAuthFilter / RedisConfig
-    ├── controller/           # AuthController / UserController
-    ├── dto/                  # RegisterRequest / LoginRequest
-    ├── entity/               # User
-    ├── repository/           # UserRepository
-    ├── service/              # AuthService / UserService
-    └── util/                 # JwtUtil
+┌─────────┐     ┌──────────┐     ┌─────────┐
+│  MySQL  │◄────│  Spring  │────►│  Redis  │
+└─────────┘     │   Boot   │     └─────────┘
+                 │   :8080  │
+                 └────┬─────┘
+                      │
+         ┌────────────┼────────────┐
+         ▼            ▼            ▼
+   ┌──────────┐ ┌──────────┐ ┌────────────┐
+   │Prometheus│ │ Grafana  │ │Alertmanager│
+   │  :9090   │ │  :3000   │ │  :9093     │
+   └──────────┘ └──────────┘ └────────────┘
 ```
 
-## 快速启动
-
-### 方式一：Docker 一键部署（推荐）
+## 一键启动
 
 ```bash
-docker compose up -d --build
-# 等待 mysql/redis 健康检查通过，应用即启动
+docker compose up -d
 ```
 
-### 方式二：本地运行
+| 服务 | 地址 | 账号密码 |
+|---|---|---|
+| 应用 | http://localhost:8080 | - |
+| Grafana | http://localhost:3000 | admin / admin |
+| Prometheus | http://localhost:9090 | - |
+| Alertmanager | http://localhost:9093 | - |
+| Jenkins | http://localhost:8081 | 首次启动设置 |
 
-1. 本地起 MySQL（库名 `user_auth_demo`）和 Redis
-2. 修改 `application.yml` 里的连接信息
-3. 运行：
+## 核心功能
+
+### 1. 用户认证
+- 注册 / 登录（JWT Token）
+- Spring Security 接口拦截
+- Redis 缓存用户信息
+
+### 2. 监控告警
+- Prometheus 采集应用、MySQL、Redis、主机指标
+- Grafana 可视化仪表盘（Node Exporter + JVM Micrometer）
+- Alertmanager 邮件告警（QQ 邮箱 SMTP）
+- 告警规则：服务宕机 / CPU 过高 / 磁盘不足
+
+### 3. CI/CD 流水线
+- Jenkins Pipeline 自动拉取 Gitee 代码
+- Maven 构建 → Docker 镜像打包
+- 推送至腾讯云 TCR 镜像仓库
+- 触发方式：push 代码自动触发
+
+### 4. 自动化运维脚本
+| 脚本 | 功能 |
+|---|---|
+| `scripts/healthcheck.sh` | 检查所有服务健康状态 |
+| `scripts/backup.sh` | MySQL 数据库备份，保留 7 天 |
+| `scripts/deploy.sh` | 一键拉代码 + 构建 + 重启 |
+| `scripts/rollback.sh` | 回退到上一个版本 |
+
+## 告警验证
 
 ```bash
-mvn clean package -DskipTests
-java -jar target/user-auth-demo-1.0.0.jar
+# 触发告警（停掉应用）
+docker stop demo-app
+
+# 等待 10 秒，Prometheus firing，收到告警邮件
+
+# 恢复（启动应用）
+docker start demo-app
+# 收到恢复邮件
 ```
 
-## 接口说明
+## 项目结构
 
-Base URL：`http://localhost:8080`
-
-| 方法 | 路径 | 说明 | 鉴权 |
-|---|---|---|---|
-| POST | `/api/auth/register` | 注册 | 否 |
-| POST | `/api/auth/login` | 登录，返回 token | 否 |
-| GET | `/api/users/me` | 查当前用户 | 是 |
-| GET | `/api/users` | 用户列表 | 是 |
-| PUT | `/api/users/me` | 更新昵称/邮箱 | 是 |
-| DELETE | `/api/users/me` | 删除账号 | 是 |
-
-### 调用示例
-
-```bash
-# 注册
-curl -X POST http://localhost:8080/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"username":"alice","password":"123456","nickname":"Alice","email":"alice@example.com"}'
-
-# 登录，拿到 token
-curl -X POST http://localhost:8080/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"alice","password":"123456"}'
-
-# 带 token 查自己
-curl -X GET http://localhost:8080/api/users/me \
-  -H "Authorization: Bearer <你的token>"
+```
+user-auth-demo/
+├── src/main/java/com/demo/        # Spring Boot 源码
+├── prometheus/                     # Prometheus 配置
+│   ├── prometheus.yml
+│   └── alert_rules.yml            # 告警规则
+├── alertmanager/                   # 邮件告警配置
+├── scripts/                        # 自动化运维脚本
+├── Dockerfile                      # 应用镜像
+├── Dockerfile.jenkins              # Jenkins 镜像（含 Maven）
+├── Jenkinsfile                     # CI/CD 流水线定义
+└── docker-compose.yml              # 全部服务编排
 ```
 
-## 安全注意
+## 学习要点
 
-- JWT 密钥、数据库密码通过**环境变量注入**，不要写死在代码里（生产必须覆盖默认值）
-- 密码仅存 BCrypt 密文，不存明文
-- Docker 镜像以**非 root 用户**运行
-
-## 后续可扩展
-
-- 刷新 Token / 登出（token 加入 Redis 黑名单）
-- 邮箱验证码
-- 分页查询、字段脱敏
-- 接入 Prometheus 监控 + Grafana
-
----
-
-*个人练习/求职作品。有问题欢迎交流。*
+1. **Docker Compose 多服务编排**：10 个容器一键启动
+2. **Prometheus 指标采集**：应用 + 中间件 + 主机
+3. **Grafana 仪表盘**：可视化监控
+4. **Alertmanager 告警**：邮件通知 + 恢复通知
+5. **Jenkins Pipeline**：代码 push 自动构建
+6. **Shell 脚本自动化**：备份、部署、回滚、健康检查

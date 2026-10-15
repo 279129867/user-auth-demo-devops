@@ -1,0 +1,12 @@
+FROM jenkins/jenkins:lts
+
+USER root
+
+# 安装 Maven 和 Docker CLI，并把 jenkins 用户加进 docker 组，
+# 这样 Jenkins 才能通过挂载的 /var/run/docker.sock 启动 maven 构建容器
+RUN apt-get update && \
+    apt-get install -y maven docker.io && \
+    rm -rf /var/lib/apt/lists/* && \
+    usermod -aG docker jenkins
+
+USER jenkins
