@@ -8,6 +8,7 @@ stages:
   trigger: auto
   steps:
   - step: build@maven
+    name: build
     displayName: 编译打包
     mavenVersion: 3.9.6
     commands:
