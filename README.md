@@ -100,6 +100,20 @@ user-auth-demo/
 └── docker-compose.yml              # 全部服务编排
 ```
 
+## 效果展示
+
+### Grafana 监控仪表盘
+![Grafana](docs/screenshots/grafana-dashboard.png)
+
+### Prometheus 告警规则
+![Prometheus Alerts](docs/screenshots/prometheus-alerts.png)
+
+### Jenkins 构建流水线
+![Jenkins](docs/screenshots/jenkins-build.png)
+
+### 邮件告警通知
+![Email Alert](docs/screenshots/email-alert.png)
+
 ## 学习要点
 
 1. **Docker Compose 多服务编排**：10 个容器一键启动
