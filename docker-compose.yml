@@ -111,7 +111,9 @@ services:
       
 
   jenkins:
-    image: jenkins/jenkins:lts
+    build:
+      context: .
+      dockerfile: Dockerfile.jenkins
     container_name: demo-jenkins
     ports:
       - "8081:8080"
@@ -119,8 +121,12 @@ services:
     volumes:
       - jenkins_home:/var/jenkins_home
       - /var/run/docker.sock:/var/run/docker.sock
+    # Docker Desktop 下 docker.sock 是 root:root(660)，让容器进程附加 root 组即可访问
+    group_add:
+      - "0"
     depends_on:
       - app
+
 
 volumes:
   mysql_data:

@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: app
+  namespace: user-auth-demo
+spec:
+  type: NodePort
+  selector:
+    app: app
+  ports:
+    - port: 8080
+      targetPort: 8080
+      nodePort: 30080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app
+  namespace: user-auth-demo
+  labels:
+    app: app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: app
+  template:
+    metadata:
+      labels:
+        app: app
+    spec:
+      containers:
+        - name: app
+          image: ccr.ccs.tencentyun.com/279129867/user-auth-demo:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: MYSQL_HOST
+              value: "mysql"
+            - name: MYSQL_PORT
+              value: "3306"
+            - name: MYSQL_USER
+              value: "demo"
+            - name: MYSQL_PASSWORD
+              value: "demo123"
+            - name: REDIS_HOST
+              value: "redis"
+            - name: REDIS_PORT
+              value: "6379"
+            - name: REDIS_PASSWORD
+              value: ""
+            - name: JWT_SECRET
+              value: "change-me-in-production-0123456789abcdef"
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+      imagePullSecrets:
+        - name: tencent-cr
