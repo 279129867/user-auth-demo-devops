@@ -1,6 +1,14 @@
-# 用户认证系统 + DevOps 运维平台
+# 🚀 user-auth-k8s-devops
 
-Spring Boot 3 用户认证项目，配套完整的监控告警、CI/CD 流水线和自动化运维脚本。
+**用户认证系统 · K8S 容器化部署 · DevOps 运维平台**
+
+一个完整可跑通的 Spring Boot 3 后端项目：实现了「注册 → 登录 → JWT 鉴权 → Redis 缓存」的全链路用户认证，并在此基础上搭建了 **Kubernetes 容器编排、监控告警、CI/CD 流水线、自动化运维** 四大生产级能力。
+
+- **☸️ 容器编排**：Kind 自建 K8S 集群，部署 app/MySQL/Redis 三个服务，解决国内镜像源不稳定问题（腾讯云 TCR 稳定源方案）
+- **🔐 用户认证**：Spring Security + JWT，密码哈希不泄露，Redis 缓存用户信息
+- **📊 监控告警**：Prometheus + Grafana + Alertmanager，宕机/CPU/磁盘邮件告警
+- **🔄 CI/CD**：Jenkins Pipeline，push 代码自动构建 → Docker 打包 → 推腾讯云
+- **🐳 容器化**：Docker + Docker Compose，10 个容器一键启动
 
 ## 技术栈
 
