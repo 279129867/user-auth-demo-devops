@@ -4,7 +4,8 @@
 
 一个完整可跑通的 Spring Boot 3 后端项目：实现了「注册 → 登录 → JWT 鉴权 → Redis 缓存」的全链路用户认证，并在此基础上搭建了 **Kubernetes 容器编排、监控告警、CI/CD 流水线、自动化运维** 四大生产级能力。
 
-- **☸️ 容器编排**：Kind 自建 K8S 集群，部署 app/MySQL/Redis 三个服务，解决国内镜像源不稳定问题（腾讯云 TCR 稳定源方案）
+- **☸️ 容器编排**：Kind 自建 K8S 集群，部署 app/MySQL/Redis/Kafka 四个服务，解决国内镜像源不稳定问题（腾讯云 TCR 稳定源方案）
+- **📨 消息队列**：Kafka 3.7 KRaft 单节点，订单异步处理（下单立即返回，消费者异步更新状态，体现异步解耦 + 削峰）
 - **🔐 用户认证**：Spring Security + JWT，密码哈希不泄露，Redis 缓存用户信息
 - **📊 监控告警**：Prometheus + Grafana + Alertmanager，宕机/CPU/磁盘邮件告警
 - **🔄 CI/CD**：Jenkins Pipeline，push 代码自动构建 → Docker 打包 → 推腾讯云
@@ -15,7 +16,7 @@
 | 层级 | 技术 |
 |---|---|
 | 后端 | Spring Boot 3 + Spring Security + JWT + MyBatis-Plus |
-| 中间件 | MySQL 8 + Redis 7 |
+| 中间件 | MySQL 8 + Redis 7 + Kafka 3.7 (KRaft) |
 | 监控 | Prometheus + Grafana + Alertmanager |
 | CI/CD | Jenkins Pipeline + Gitee |
 | 容器化 | Docker + Docker Compose |
@@ -178,6 +179,51 @@ curl http://localhost:18080/actuator/health   # 200，db/redis 均 UP
 3. **集群直拉外网不稳**：改「本机 docker 拉 + kind load 导入」，Pod 用 `imagePullPolicy: IfNotPresent` 直接用节点内镜像——最稳。
 4. **kind load 的 `loading...` 只是 stderr 提示**，用 `ctr images list` 确认真实加载结果。
 
+## Kafka 订单异步处理（KRaft）
+
+在 K8S 集群内补上 **MQ / Kafka 缺口**：用「订单异步处理」场景演示消息队列的**异步解耦 + 削峰**——下单后主流程立即返回，支付/状态更新由 Kafka 消费者异步完成。
+
+### 异步链路
+
+```
+POST /api/orders/create（带 JWT）──► OrderService 落库 status=PENDING ──► 立即返回
+        │
+        ▼  OrderProducer 发送消息
+   Kafka topic: order-events（KRaft 单节点）
+        │
+        ▼  OrderConsumer 异步消费（模拟处理 1s）
+   OrderService.markPaid ──► 数据库 status: PENDING → PAID
+```
+
+### 验证结果（实测）
+
+| 步骤 | 结果 |
+|---|---|
+| POST /api/orders/create | ✅ orderId=2, status=PENDING |
+| 立即 GET /api/orders/2 | ✅ status=PENDING（主流程先落库） |
+| 等待 2.5s 后 GET /api/orders/2 | ✅ **status=PAID**（消费者异步更新） |
+| kafka topic order-events offset | ✅ 消息被生产并被消费者消费 |
+
+> 订单状态由 PENDING → PAID 只有 Kafka 消费者会触发（`markPaid`），配合 topic offset 前进，证明生产者-主题-消费者全链路真实工作。
+
+### Kafka 关键文件
+
+| 文件 | 作用 |
+|---|---|
+| `src/.../kafka/KafkaConfig.java` | 定义 topic `order-events` |
+| `src/.../kafka/OrderProducer.java` | 生产者：发订单创建消息 |
+| `src/.../kafka/OrderConsumer.java` | 消费者：异步 markPaid 更新状态 |
+| `src/.../controller/OrderController.java` | POST /api/orders/create、GET /api/orders/{id} |
+| `k8s/kafka.yaml` | Kafka Deployment + Service（KRaft 单节点） |
+| `k8s/KAFKA-订单异步处理-部署报告.md` | 完整部署报告（含踩坑与命令） |
+
+### Kafka 部署要点（踩坑总结）
+
+1. **bitnami 镜像国内源拉不到**（daocloud/1ms.run 对 bitnami `denied`）→ 改用 `apache/kafka:3.7.0`，daocloud 有缓存。
+2. **apache/kafka 3.7 官方镜像只支持 KRaft**（不再支持 Zookeeper 模式）→ 采用 KRaft 单节点，这是 Kafka 3.x 新标准，去掉了 zookeeper，更简洁。
+3. **kind load 多架构镜像失败**（`content digest not found`）→ 用 `docker save` + 节点内 `ctr images import`（stdin 重定向），绕开 kind 的 `--all-platforms`。
+4. **kafka readiness 探测**用 `tcpSocket: 9092` 最稳（exec 探针在镜像里退出码不可靠）。
+
 ## 效果展示
 
 ### Grafana 监控仪表盘
@@ -201,3 +247,4 @@ curl http://localhost:18080/actuator/health   # 200，db/redis 均 UP
 5. **Jenkins Pipeline**：代码 push 自动构建
 6. **Shell 脚本自动化**：备份、部署、回滚、健康检查
 7. **K8S 容器编排**：Kind 建集群、Deployment/Service、imagePullSecret、稳定镜像源方案
+8. **Kafka 消息队列**：KRaft 单节点、生产者/消费者、订单异步处理、异步解耦 + 削峰
