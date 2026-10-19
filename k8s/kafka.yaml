@@ -1,0 +1,80 @@
+# Kafka 消息队列（单节点演示版）
+# 组件：apache/kafka:3.7.0，KRaft 模式（controller + broker 合一，Kafka 3.x 新标准，无需 Zookeeper）
+# 镜像走腾讯云 TCR（ccr 地址），本地 kind load + IfNotPresent
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka
+  namespace: user-auth-demo
+spec:
+  selector:
+    app: kafka
+  ports:
+    - port: 9092
+      targetPort: 9092
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka
+  namespace: user-auth-demo
+  labels:
+    app: kafka
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kafka
+  template:
+    metadata:
+      labels:
+        app: kafka
+    spec:
+      containers:
+        - name: kafka
+          image: ccr.ccs.tencentyun.com/279129867/kafka:3.7
+          imagePullPolicy: IfNotPresent
+          env:
+            # KRaft 单节点：节点ID / 同时担任 broker+controller
+            - name: KAFKA_NODE_ID
+              value: "1"
+            - name: KAFKA_PROCESS_ROLES
+              value: "broker,controller"
+            # controller 仲裁（单节点指向自身）
+            - name: KAFKA_CONTROLLER_QUORUM_VOTERS
+              value: "1@localhost:9093"
+            # 监听：客户端 9092 + controller 9093
+            - name: KAFKA_LISTENERS
+              value: "PLAINTEXT://:9092,CONTROLLER://:9093"
+            # 对外广告地址（集群内走 kafka service 名）
+            - name: KAFKA_ADVERTISED_LISTENERS
+              value: "PLAINTEXT://kafka:9092"
+            - name: KAFKA_CONTROLLER_LISTENER_NAMES
+              value: "CONTROLLER"
+            - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
+              value: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+            # 单副本所需的复制因子（单节点必须=1，否则启动报错）
+            - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
+              value: "1"
+            - name: KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR
+              value: "1"
+            - name: KAFKA_TRANSACTION_STATE_LOG_MIN_ISR
+              value: "1"
+            # 允许自动创建 topic（演示用，生产建议关闭）
+            - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
+              value: "true"
+          ports:
+            - containerPort: 9092
+          readinessProbe:
+            tcpSocket:
+              port: 9092
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          volumeMounts:
+            - name: kafka-data
+              mountPath: /tmp/kraft-combined-logs
+      volumes:
+        - name: kafka-data
+          emptyDir: {}
+      imagePullSecrets:
+        - name: tencent-cr
